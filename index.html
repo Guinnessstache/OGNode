@@ -980,6 +980,7 @@ async function checkBalance() {
     const reserved  = toWei(resH);
     const wdAmt     = toWei(wdAmtH);
     const wdTs      = parseInt(wdTsH, 16);
+    const wdPend    = !/^0x0*$/.test(wdPendH);
     const rep       = toWei(repH);
     const available = stake > reserved ? stake - reserved : 0n;
     const now       = Math.floor(Date.now() / 1000);

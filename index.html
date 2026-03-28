@@ -1101,12 +1101,11 @@ function buildExecute(innerHex) {
 // ── Send transaction ───────────────────────────────────────────────────────
 async function sendTx(to, data) {
   if (!provider || !wallet) throw new Error('No wallet connected. Connect your management wallet first.');
-  const gasEst   = await rpc('eth_estimateGas', [{ from: wallet, to, data }]);
-  const gasLimit = '0x' + Math.ceil(parseInt(gasEst, 16) * 1.2).toString(16);
-  const gasPrice = await rpc('eth_gasPrice', []);
-  return provider.request({ method: 'eth_sendTransaction', params: [{ from: wallet, to, data, gas: gasLimit, gasPrice }] });
+  return provider.request({
+    method: 'eth_sendTransaction',
+    params: [{ from: wallet, to, data }]
+  });
 }
-
 // ── Finish (pending already unlocked) ─────────────────────────────────────
 async function executeFinish() {
   if (!wallet) {

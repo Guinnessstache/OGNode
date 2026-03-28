@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OGNode — OriginTrail v1 TRAC Withdrawal Tool</title>
+<meta name="description" content="Check and withdraw your staked TRAC tokens from OriginTrail v1 node contracts. Supports MetaMask and Ledger hardware wallets.">
+<meta property="og:title" content="OGNode — OriginTrail v1 TRAC Withdrawal">
+<meta property="og:description" content="Recover your staked TRAC from old OriginTrail v1 nodes. Read-only balance check + full withdrawal flow with MetaMask or Ledger.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080b0e;
+  --surface:  #0e1318;
+  --surface2: #141b22;
+  --surface3: #1a2430;
+  --border:   #1e2d3d;
+  --border2:  #243549;
+  --trac:     #00e5a0;
+  --trac-dim: #00875f;
+  --trac-bg:  #041410;
+  --trac-mid: #00c488;
+  --text:     #dce8f0;
+  --muted:    #6a8099;
+  --muted2:   #3d5068;
+  --warn:     #f0a030;
+  --warn-bg:  #140e00;
+  --warn-bd:  #3d2d00;
+  --danger:   #e05050;
+  --danger-bg:#130808;
+  --info:     #3a9eff;
+  --info-bg:  #060f1a;
+  --info-bd:  #183050;
+  --mono:     'Share Tech Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 300;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Grid background ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,160,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,160,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Hero header ── */
+.hero {
+  position: relative;
+  z-index: 1;
+  padding: 48px 24px 40px;
+  max-width: 720px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.node-icon {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--trac-dim);
+  border-radius: 10px;
+  background: var(--trac-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.node-icon::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0,229,160,.15);
+}
+
+.node-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--trac);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.site-name {
+  font-family: var(--mono);
+  font-size: 28px;
+  color: var(--trac);
+  letter-spacing: .06em;
+}
+
+.site-tag {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-family: var(--mono);
+  letter-spacing: .04em;
+}
+
+.hero-desc {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+.hero-desc strong { color: var(--text); font-weight: 500; }
+
+.contract-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.c-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--trac-dim);
+  background: var(--trac-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  letter-spacing: .02em;
+}
+
+.c-pill span { color: var(--muted2); margin-right: 4px; }
+
+/* ── Main layout ── */
+.main {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+}
+
+/* ── Section headings ── */
+.sh {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin: 28px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.sh:first-child { margin-top: 0; }
+
+/* ── Panels ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+/* ── Contract grid ── */
+.ctag {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ctag-item .cl {
+  font-size: 10px;
+  color: var(--muted2);
+  font-family: var(--mono);
+  letter-spacing: .06em;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.ctag-item .cv {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--trac-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  word-break: break-all;
+}
+
+/* ── Inputs ── */
+input[type=text] {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  letter-spacing: .02em;
+}
+
+input[type=text]:focus {
+  border-color: var(--trac-dim);
+  box-shadow: 0 0 0 3px rgba(0,229,160,.06);
+}
+
+input[type=text]::placeholder { color: var(--muted2); }
+
+.row { display: flex; gap: 8px; }
+.row input { flex: 1; }
+
+/* ── Buttons ── */
+button {
+  background: var(--trac-bg);
+  border: 1px solid var(--trac-dim);
+  border-radius: 6px;
+  color: var(--trac);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 10px 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  letter-spacing: .04em;
+}
+
+button:hover {
+  background: #061e14;
+  border-color: var(--trac);
+  box-shadow: 0 0 12px rgba(0,229,160,.12);
+}
+
+button:active { transform: scale(.98); }
+button:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+button.sec {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+button.sec:hover {
+  border-color: var(--border2);
+  color: var(--text);
+  box-shadow: none;
+}
+
+button.full {
+  width: 100%;
+  padding: 13px;
+  font-size: 13px;
+  margin-top: 12px;
+  letter-spacing: .06em;
+}
+
+button.finish-btn {
+  background: #061e14;
+  border-color: var(--trac);
+  color: var(--trac);
+  font-size: 14px;
+  letter-spacing: .06em;
+}
+
+button.finish-btn:hover {
+  background: #092b1e;
+  box-shadow: 0 0 20px rgba(0,229,160,.18);
+}
+
+/* ── Status messages ── */
+.st {
+  border-radius: 7px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.s-info   { background: var(--info-bg);   border: 1px solid var(--info-bd);  color: var(--info);   }
+.s-warn   { background: var(--warn-bg);   border: 1px solid var(--warn-bd);  color: var(--warn);   }
+.s-err    { background: var(--danger-bg); border: 1px solid #3d1010;         color: var(--danger); }
+.s-ok     { background: var(--trac-bg);   border: 1px solid var(--trac-dim); color: var(--trac);   }
+
+.spin {
+  width: 13px; height: 13px;
+  border: 2px solid rgba(58,158,255,.2);
+  border-top-color: var(--info);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Wallet bar ── */
+.wallet-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.w-addr {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--trac);
+  letter-spacing: .04em;
+}
+
+.w-label { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── Wallet connect buttons ── */
+.wallet-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Balance display ── */
+.big-num {
+  font-family: var(--mono);
+  font-size: 32px;
+  color: var(--trac);
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+
+.big-sub { font-size: 13px; color: var(--muted); margin-top: 5px; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.met {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 13px 14px;
+}
+
+.met .ml {
+  font-size: 9px;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-family: var(--mono);
+  margin-bottom: 5px;
+}
+
+.met .mv {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.met .mv.g { color: var(--trac); }
+.met .mv.a { color: var(--warn); }
+.met .ms { font-size: 10px; color: var(--muted2); margin-top: 3px; }
+
+/* ── Gas box ── */
+.gas-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+
+.gas-ttl {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted2);
+  margin-bottom: 12px;
+}
+
+.gas-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.gas-row:last-child { border-bottom: none; }
+
+.gk { color: var(--muted); }
+.gv { font-family: var(--mono); color: var(--text); font-size: 11px; }
+
+.gas-total {
+  border-top: 1px solid var(--border2);
+  margin-top: 10px;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+/* ── Steps ── */
+.steps {
+  display: flex;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.step {
+  flex: 1;
+  padding: 11px 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted2);
+  background: var(--surface2);
+  border-right: 1px solid var(--border);
+  font-family: var(--mono);
+  transition: all .2s;
+}
+
+.step:last-child { border-right: none; }
+.step.active { background: var(--trac-bg); color: var(--trac); border-color: var(--border); }
+.step.done   { background: var(--surface); color: var(--trac-dim); }
+.step-n      { font-size: 15px; margin-bottom: 3px; letter-spacing: .02em; }
+
+/* ── Amount row ── */
+.amt-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.amt-row input { flex: 1; }
+
+/* ── Ready banner ── */
+.ready-banner {
+  background: linear-gradient(135deg, #041410 0%, #061a12 100%);
+  border: 1px solid var(--trac-dim);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.ready-banner::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(0,229,160,.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.rb-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--trac-dim);
+  background: rgba(0,229,160,.06);
+  border: 1px solid var(--trac-dim);
+  border-radius: 20px;
+  padding: 4px 12px;
+  margin-bottom: 12px;
+}
+
+.rb-amount {
+  font-family: var(--mono);
+  font-size: 42px;
+  color: var(--trac);
+  letter-spacing: -.02em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.rb-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.rb-note {
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  line-height: 1.7;
+  text-align: left;
+}
+
+/* ── Links ── */
+a.el {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color .15s;
+  letter-spacing: .02em;
+}
+a.el:hover { color: var(--trac); }
+
+.links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ── Note ── */
+.note { font-size: 11px; color: var(--muted2); line-height: 1.7; margin-top: 8px; }
+
+/* ── Utility ── */
+.hidden { display: none !important; }
+hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ── Footer ── */
+footer {
+  position: relative; z-index: 1;
+  max-width: 720px; margin: 0 auto;
+  padding: 0 24px 40px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.footer-col h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 10px;
+}
+
+.footer-col p,
+.footer-col li {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+  list-style: none;
+}
+
+.footer-col li::before { content: '→ '; color: var(--muted2); }
+
+.footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.footer-bottom p { font-size: 11px; color: var(--muted2); font-family: var(--mono); }
+.footer-bottom a { color: var(--muted); text-decoration: none; }
+.footer-bottom a:hover { color: var(--trac); }
+
+@media (max-width: 500px) {
+  .ctag { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .rb-amount { font-size: 30px; }
+  .big-num { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <div class="hero-top">
+    <div class="node-icon">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <div>
+      <div class="site-name">OGNode</div>
+      <div class="site-tag">OriginTrail v1 TRAC Recovery Tool</div>
+    </div>
+  </div>
+  <p class="hero-desc">
+    If you ran an <strong>OriginTrail v1 data holding node</strong> and staked TRAC as collateral,
+    this tool lets you check your balance and withdraw tokens from the original
+    <strong>ProfileStorage contract</strong> — the same flow as the old node-profile.origintrail.io site.
+    Works with MetaMask and Ledger hardware wallets.
+  </p>
+  <div class="contract-strip">
+    <div class="c-pill"><span>Profile</span>0x7875357a…2729</div>
+    <div class="c-pill"><span>ProfileStorage</span>0x306D5E8A…FFB</div>
+    <div class="c-pill"><span>Hub</span>0x89777F4D…a79</div>
+    <div class="c-pill"><span>Network</span>Ethereum mainnet</div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div class="main">
+
+  <!-- Contracts -->
+  <div class="sh">Verified contract addresses</div>
+  <div class="panel">
+    <div class="ctag">
+      <div class="ctag-item">
+        <div class="cl">Hub</div>
+        <div class="cv">0x89777F4D16F0a263F47EaD07cbCAb9497861aa79</div>
+      </div>
+      <div class="ctag-item">
+        <div class="cl">Profile contract</div>
+        <div class="cv">0x7875357a329de15c525f4aaa0d9dd849fcfc2729</div>
+      </div>
+      <div class="ctag-item">
+        <div class="cl">ProfileStorage (token vault)</div>
+        <div class="cv">0x306D5E8AF6AeB73359dcC5E22C894e2588F76FFB</div>
+      </div>
+      <div class="ctag-item">
+        <div class="cl">Withdrawal delay</div>
+        <div class="cv" id="wdTimeTag">300 seconds (5 min)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1: Wallet -->
+  <div class="sh">Step 1 — Connect your management wallet</div>
+  <div class="panel">
+    <div id="wDisc">
+      <p class="note" style="margin-bottom:14px">Connect the <strong style="color:var(--text)">management wallet</strong> that controlled your OriginTrail v1 node identity. This is the wallet you used on node-profile.origintrail.io.</p>
+      <div class="wallet-btns">
+        <button onclick="connectMM()">&#11835; MetaMask</button>
+        <button class="sec" onclick="connectWC()">&#9700; WalletConnect / Ledger</button>
+      </div>
+      <div id="connStatus" style="margin-top:12px"></div>
+    </div>
+    <div id="wConn" class="hidden">
+      <div class="wallet-bar">
+        <div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">Management wallet</div>
+          <div class="w-addr" id="wAddr"></div>
+          <div class="w-label" id="wLabel"></div>
+        </div>
+        <button class="sec" onclick="disconnectW()" style="padding:7px 12px;font-size:11px">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Identity -->
+  <div class="sh">Step 2 — Enter your ERC725 identity address</div>
+  <div class="panel">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--muted2);letter-spacing:.06em;margin-bottom:8px">ERC725 IDENTITY ADDRESS (not your management wallet)</div>
+    <div class="row">
+      <input type="text" id="identInput" placeholder="0x..." spellcheck="false" autocomplete="off" />
+      <button id="checkBtn" onclick="checkBalance()">Check balance</button>
+    </div>
+    <p class="note">This is your node's on-chain identity contract — the address you entered on node-profile.origintrail.io, not the wallet address itself.</p>
+    <div id="balOut" style="margin-top:14px"></div>
+  </div>
+
+  <!-- Ready to finish banner -->
+  <div id="readyBanner" class="hidden">
+    <div class="ready-banner">
+      <div class="rb-badge">&#10003; Withdrawal unlocked &amp; ready</div>
+      <div class="rb-amount" id="readyAmount">0 TRAC</div>
+      <div class="rb-sub" id="readyUsd"></div>
+      <div class="rb-note" id="readyNote"></div>
+      <button class="full finish-btn" id="finishDirectBtn" onclick="executeFinish()">&#10003; Sign &amp; collect TRAC now</button>
+      <div id="finishDirectStatus" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Gas estimate -->
+  <div id="gasSection" class="hidden">
+    <div class="sh">Step 3 — Gas cost estimate</div>
+    <div class="panel">
+      <div class="gas-box">
+        <div class="gas-ttl">Estimated transaction cost</div>
+        <div class="gas-row"><span class="gk">Step 1 &mdash; startTokenWithdrawal (~82,300 gas)</span><span class="gv" id="g1cost">—</span></div>
+        <div class="gas-row"><span class="gk">Step 2 &mdash; withdrawTokens (~82,100 gas)</span><span class="gv" id="g2cost">—</span></div>
+        <div class="gas-row"><span class="gk">Current gas price</span><span class="gv" id="gPrice">—</span></div>
+        <div class="gas-row"><span class="gk">ETH price</span><span class="gv" id="gEth">—</span></div>
+        <div class="gas-total">
+          <span class="gk" style="color:var(--muted)">Total (both steps)</span>
+          <span class="gv" id="gTotal" style="color:var(--warn);font-size:13px">—</span>
+        </div>
+      </div>
+      <div id="worthIt" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- Withdrawal flow -->
+  <div id="withdrawSection" class="hidden">
+    <div class="sh">Step 4 — Execute withdrawal</div>
+    <div class="panel">
+      <div class="steps">
+        <div class="step active" id="s1ind"><div class="step-n">01</div>Start withdrawal</div>
+        <div class="step" id="s2ind"><div class="step-n">02</div>Wait 5 min</div>
+        <div class="step" id="s3ind"><div class="step-n">03</div>Collect TRAC</div>
+      </div>
+
+      <div id="ws1">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted2);letter-spacing:.06em;margin-bottom:8px">AMOUNT TO WITHDRAW (TRAC)</div>
+        <div class="amt-row">
+          <input type="text" id="wdAmtInput" placeholder="e.g. 1196.49" />
+          <button class="sec" onclick="setMax()">Max</button>
+        </div>
+        <div id="reservedWarn" class="hidden">
+          <div class="st s-warn" style="margin-bottom:12px">
+            <span>&#9888;&nbsp; Most of your stake is reserved in active holding jobs. You can only withdraw the <strong>unreserved</strong> amount shown above — the contract will revert if you exceed it. See the FAQ below for more info.</span>
+          </div>
+        </div>
+        <p class="note" style="margin-bottom:12px">Your management wallet signs <code style="font-family:var(--mono);color:var(--muted);font-size:10px">identity.execute(0, Profile, 0, startTokenWithdrawal(identity, amount))</code></p>
+        <button class="full" id="s1btn" onclick="step1()">Sign &amp; send: Start withdrawal</button>
+        <div id="s1status" style="margin-top:10px"></div>
+      </div>
+
+      <div id="ws2" class="hidden">
+        <div class="st s-ok"><span>&#10003;</span>&nbsp;<span>Step 1 confirmed. Waiting <strong id="countdown">5:00</strong> before you can collect.</span></div>
+        <div style="margin:10px 0"><a class="el" id="s1txlink" href="#" target="_blank">View step 1 tx on Etherscan &#8599;</a></div>
+        <button class="full finish-btn" id="s2btn" onclick="step2()" disabled>Waiting for delay&hellip;</button>
+        <div id="s2status" style="margin-top:10px"></div>
+      </div>
+
+      <div id="wdone" class="hidden">
+        <div class="st s-ok" style="font-size:14px"><span>&#10003;</span>&nbsp;<span>Withdrawal complete! TRAC has been sent to your identity address.</span></div>
+        <div style="margin-top:10px"><a class="el" id="s2txlink" href="#" target="_blank">View finalisation tx on Etherscan &#8599;</a></div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+  <div class="links">
+    <a class="el" href="https://etherscan.io/address/0x7875357a329de15c525f4aaa0d9dd849fcfc2729" target="_blank">&#8599; Profile on Etherscan</a>
+    <a class="el" href="https://etherscan.io/address/0x306D5E8AF6AeB73359dcC5E22C894e2588F76FFB" target="_blank">&#8599; ProfileStorage</a>
+    <a class="el" href="https://etherscan.io/token/0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f" target="_blank">&#8599; TRAC token</a>
+    <a class="el" href="https://github.com/Guinnessstache/ognode" target="_blank">&#8599; GitHub source</a>
+  </div>
+
+</div>
+
+<!-- ── FOOTER / FAQ ── -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>Known limitations</h4>
+      <ul>
+        <li>Reserved stake (in active jobs) cannot be withdrawn until those jobs are finalised on-chain — for many abandoned nodes this may be permanently stuck</li>
+        <li>This tool only supports Ethereum mainnet (the original v1 ODN)</li>
+        <li>WalletConnect v1 is used for Ledger; v2 support may be needed for newer Ledger Live versions</li>
+        <li>Contract source is unverified on Etherscan — selectors were reverse-engineered from bytecode</li>
+        <li>No audit — use at your own risk. Always verify the transaction in your wallet before signing</li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>How it works</h4>
+      <ul>
+        <li>Balance is read directly from ProfileStorage via public Ethereum RPC (4 fallback endpoints)</li>
+        <li>Withdrawal routes through your ERC725 identity contract via <code style="font-family:var(--mono);font-size:10px">execute()</code></li>
+        <li>Two steps: startTokenWithdrawal → 5 min wait → withdrawTokens</li>
+        <li>If a previous withdrawal was started and never finished, the app detects it and skips to the collect step</li>
+        <li>No backend — fully client-side. No keys or data leave your browser</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>OGNode &mdash; open source &mdash; <a href="https://github.com/Guinnessstache/ognode" target="_blank">github.com/Guinnessstache/ognode</a></p>
+    <p>Not affiliated with OriginTrail / Trace Labs</p>
+  </div>
+</footer>
+
+<!-- ── JAVASCRIPT ── -->
+<script>
+const RPCS = [
+  'https://eth-mainnet.public.blastapi.io',
+  'https://ethereum.publicnode.com',
+  'https://eth.llamarpc.com',
+  'https://1rpc.io/eth',
+];
+const PS      = '0x306D5E8AF6AeB73359dcC5E22C894e2588F76FFB';
+const PROFILE = '0x7875357a329de15c525f4aaa0d9dd849fcfc2729';
+
+let wallet = null, provider = null;
+let stakeAvailable = 0n, currentIdentity = '';
+let withdrawDelay = 300, cdownInterval = null;
+
+// ── RPC ──────────────────────────────────────────────────────────────────
+async function rpc(method, params) {
+  for (const url of RPCS) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error.message);
+      return d.result;
+    } catch (e) { /* try next */ }
+  }
+  throw new Error('All RPC endpoints failed — check your internet connection.');
+}
+
+const ethCall = (to, data) => rpc('eth_call', [{ to, data }, 'latest']);
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const pad        = a => a.toLowerCase().replace('0x', '').padStart(64, '0');
+const toWei      = h => (!h || /^0x0*$/.test(h)) ? 0n : BigInt(h);
+const fmtT       = (w, d = 3) => {
+  if (!w || w === 0n) return '0.000';
+  const W = w / 10n ** 18n;
+  const F = ((w % 10n ** 18n) * BigInt(10 ** d) / 10n ** 18n).toString().padStart(d, '0');
+  return W.toLocaleString('en-US') + '.' + F;
+};
+const weiFromStr = s => {
+  const n = parseFloat(s);
+  if (isNaN(n) || n <= 0) return null;
+  return BigInt(Math.round(n * 1e6)) * 10n ** 12n;
+};
+const shortA = a => a.slice(0, 8) + '…' + a.slice(-6);
+const $      = id => document.getElementById(id);
+const show   = id => $(id).classList.remove('hidden');
+const hide   = id => $(id).classList.add('hidden');
+const setH   = (id, h) => { const e = $(id); if (e) e.innerHTML = h; };
+
+// ── Wallet: MetaMask ──────────────────────────────────────────────────────
+async function connectMM() {
+  await new Promise(r => setTimeout(r, 150));
+  const eth = window.ethereum || window.web3?.currentProvider;
+  if (!eth) {
+    setH('connStatus', '<div class="st s-err"><span>&#9888;</span>&nbsp;MetaMask not detected. Make sure the extension is installed and this page is not in an incognito window.</div>');
+    return;
+  }
+  try {
+    setH('connStatus', '<div class="st s-info"><div class="spin"></div>&nbsp;Opening MetaMask&hellip;</div>');
+    const accounts = await eth.request({ method: 'eth_requestAccounts' });
+    const chain    = await eth.request({ method: 'eth_chainId' });
+    if (parseInt(chain, 16) !== 1) {
+      setH('connStatus', '<div class="st s-warn"><span>&#9888;</span>&nbsp;Please switch MetaMask to <strong>Ethereum Mainnet</strong> and try again.</div>');
+      return;
+    }
+    provider = eth;
+    onConnected(accounts[0], 'MetaMask');
+    eth.on('accountsChanged', a => a.length ? onConnected(a[0], 'MetaMask') : disconnectW());
+    eth.on('chainChanged', () => location.reload());
+  } catch (e) {
+    const msg = e.code === 4001 ? 'Connection rejected in MetaMask.' : e.message;
+    setH('connStatus', `<div class="st s-err"><span>&#9888;</span>&nbsp;${msg}</div>`);
+  }
+}
+
+// ── Wallet: WalletConnect (Ledger etc.) ───────────────────────────────────
+async function connectWC() {
+  setH('connStatus', '<div class="st s-info"><div class="spin"></div>&nbsp;Loading WalletConnect&hellip;</div>');
+  try {
+    if (!window.WalletConnectProvider) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const wc = new window.WalletConnectProvider.default({ rpc: { 1: RPCS[0] }, chainId: 1 });
+    await wc.enable();
+    provider = wc;
+    const accounts = await wc.request({ method: 'eth_accounts' });
+    onConnected(accounts[0], 'WalletConnect / Ledger');
+    wc.on('accountsChanged', a => a.length ? onConnected(a[0], 'WalletConnect') : disconnectW());
+    wc.on('disconnect', disconnectW);
+  } catch (e) {
+    setH('connStatus', `<div class="st s-err"><span>&#9888;</span>&nbsp;${e.message || 'Cancelled or failed.'}</div>`);
+  }
+}
+
+function onConnected(addr, label) {
+  wallet = addr.toLowerCase();
+  hide('wDisc'); show('wConn');
+  setH('wAddr', shortA(addr));
+  setH('wLabel', label + ' · Ethereum mainnet');
+}
+
+function disconnectW() {
+  wallet = null; provider = null;
+  show('wDisc'); hide('wConn');
+  setH('connStatus', '');
+}
+
+// ── Prices ────────────────────────────────────────────────────────────────
+async function getPrice(id) {
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, { signal: AbortSignal.timeout(5000) });
+    return (await r.json())[id]?.usd || null;
+  } catch { return null; }
+}
+
+// ── Gas helpers ───────────────────────────────────────────────────────────
+function calcGas(units, gasPriceH, ethPrice) {
+  const gp  = parseInt(gasPriceH, 16);
+  const eth = (units * gp) / 1e18;
+  const usd = ethPrice ? eth * ethPrice : null;
+  return { eth, usd, gpGwei: (gp / 1e9).toFixed(4) };
+}
+
+// ── Balance check ─────────────────────────────────────────────────────────
+async function checkBalance() {
+  const identity = $('identInput').value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(identity)) {
+    setH('balOut', '<div class="st s-err"><span>&#9888;</span>&nbsp;Invalid Ethereum address format.</div>');
+    return;
+  }
+  currentIdentity = identity;
+  $('checkBtn').disabled = true;
+  setH('balOut', '<div class="st s-info"><div class="spin"></div>&nbsp;Querying Ethereum mainnet&hellip;</div>');
+  hide('readyBanner'); hide('gasSection'); hide('withdrawSection');
+
+  try {
+    const [stakeH, resH, wdAmtH, wdTsH, wdPendH, repH, gasPriceH, ethP, tracP, wdTimeH] = await Promise.all([
+      ethCall(PS, '0x7a766460' + pad(identity)),
+      ethCall(PS, '0x5ffe0282' + pad(identity)),
+      ethCall(PS, '0x56582bf9' + pad(identity)),
+      ethCall(PS, '0x9344ea6e' + pad(identity)),
+      ethCall(PS, '0x2ba97595' + pad(identity)),
+      ethCall(PS, '0x9c89a0e2' + pad(identity)),
+      rpc('eth_gasPrice', []),
+      getPrice('ethereum'),
+      getPrice('origintrail'),
+      ethCall(PROFILE, '0x389eb9f9'),
+    ]);
+
+    withdrawDelay = parseInt(wdTimeH, 16) || 300;
+    setH('wdTimeTag', withdrawDelay + 's (' + Math.round(withdrawDelay / 60) + ' min)');
+
+    const stake     = toWei(stakeH);
+    const reserved  = toWei(resH);
+    const wdAmt     = toWei(wdAmtH);
+    const wdTs      = parseInt(wdTsH, 16);
+    const rep       = toWei(repH);
+    const available = stake > reserved ? stake - reserved : 0n;
+    const now       = Math.floor(Date.now() / 1000);
+    stakeAvailable  = available;
+
+    if (stake === 0n && wdAmt === 0n) {
+      setH('balOut', '<div class="st s-warn"><span>&#9888;</span>&nbsp;No TRAC stake found for this identity address. Double-check you have the right address.</div>');
+      $('checkBtn').disabled = false;
+      return;
+    }
+
+    const wdUnlocked = wdAmt > 0n && wdTs > 0 && wdTs <= now;
+    const wdLocked   = wdAmt > 0n && wdTs > 0 && wdTs > now;
+    const usdStake   = tracP ? '$' + (Number(stake) / 1e18 * tracP).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null;
+    const usdAvail   = tracP && available > 0n ? '$' + (Number(available) / 1e18 * tracP).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null;
+    const pct        = stake > 0n ? Number(reserved * 100n / stake) : 0;
+
+    let html = `
+      <div style="margin-bottom:14px">
+        <div style="font-size:9px;font-family:var(--mono);color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Total staked TRAC</div>
+        <div class="big-num">${fmtT(stake)}</div>
+        <div class="big-sub">${usdStake ? usdStake + ' at current price' : ''}</div>
+      </div>
+      <div class="metrics">
+        <div class="met"><div class="ml">Available</div><div class="mv g">${fmtT(available)}</div><div class="ms">${usdAvail || 'unreserved'}</div></div>
+        <div class="met"><div class="ml">Reserved</div><div class="mv ${reserved > 0n ? 'a' : ''}">${fmtT(reserved)}</div><div class="ms">${pct.toFixed(1)}% in jobs</div></div>
+        <div class="met"><div class="ml">Reputation</div><div class="mv">${rep.toLocaleString('en-US')}</div><div class="ms">score</div></div>
+      </div>`;
+
+    if (wdUnlocked) {
+      html += `<div class="st s-ok"><span>&#10003;</span>&nbsp;<span>Pending withdrawal of <strong>${fmtT(wdAmt)} TRAC</strong> is <strong>unlocked and ready to collect</strong>. See the banner below.</span></div>`;
+    } else if (wdLocked) {
+      const rem = wdTs - now;
+      html += `<div class="st s-warn"><span>&#9888;</span>&nbsp;<span>Pending withdrawal of <strong>${fmtT(wdAmt)} TRAC</strong> — unlocks in <strong>${Math.ceil(rem / 60)} minutes</strong>.</span></div>`;
+    }
+
+    html += `<div class="links">
+      <a class="el" href="https://etherscan.io/address/${identity}" target="_blank">&#8599; Identity on Etherscan</a>
+      <a class="el" href="https://etherscan.io/address/${identity}#tokentxns" target="_blank">&#8599; TRAC transfer history</a>
+      ${tracP ? `<span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">TRAC $${tracP.toFixed(4)}</span>` : ''}
+    </div>`;
+
+    setH('balOut', html);
+
+    if (wdUnlocked) {
+      // Fast path — one tx to collect
+      const { eth, usd, gpGwei } = calcGas(82100, gasPriceH, ethP);
+      const usdWd     = tracP ? '$' + (Number(wdAmt) / 1e18 * tracP).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+      const initDate  = new Date((wdTs - withdrawDelay) * 1000);
+      const ratio     = usd && tracP ? (Number(wdAmt) / 1e18 * tracP) / usd : null;
+      setH('readyAmount', fmtT(wdAmt) + ' TRAC');
+      setH('readyUsd', usdWd ? usdWd + ' at current price' : '');
+      setH('readyNote',
+        `A withdrawal was initiated on <strong style="color:var(--text)">${initDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong> ` +
+        `and has been sitting unlocked ever since. One transaction is all you need to collect it.<br><br>` +
+        `Gas cost: ~${eth.toFixed(6)} ETH${usd ? ' (~$' + usd.toFixed(3) + ')' : ''} at ${gpGwei} Gwei.` +
+        (ratio ? ` That's a <strong style="color:var(--trac)">${ratio.toFixed(0)}×</strong> return on gas vs TRAC value.` : '')
+      );
+      show('readyBanner');
+
+    } else {
+      // Full two-step flow
+      if (reserved > 0n && reserved > available) show('reservedWarn'); else hide('reservedWarn');
+      $('wdAmtInput').value = (Number(available) / 1e18).toFixed(4);
+
+      const g1  = calcGas(82294, gasPriceH, ethP);
+      const g2  = calcGas(82081, gasPriceH, ethP);
+      const tot = { eth: g1.eth + g2.eth, usd: g1.usd && g2.usd ? g1.usd + g2.usd : null };
+      const tv  = tracP && available > 0n ? Number(available) / 1e18 * tracP : null;
+
+      setH('g1cost',  `~${g1.eth.toFixed(6)} ETH${g1.usd ? ' ($' + g1.usd.toFixed(3) + ')' : ''}`);
+      setH('g2cost',  `~${g2.eth.toFixed(6)} ETH${g2.usd ? ' ($' + g2.usd.toFixed(3) + ')' : ''}`);
+      setH('gPrice',  g1.gpGwei + ' Gwei');
+      setH('gEth',    ethP ? '$' + ethP.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'unavailable');
+      setH('gTotal',  `${tot.eth.toFixed(6)} ETH${tot.usd ? ' ≈ $' + tot.usd.toFixed(3) : ''}`);
+
+      if (tot.usd && tv) {
+        const r = tv / tot.usd;
+        const cls = r > 50 ? 's-ok' : r > 5 ? 's-warn' : 's-err';
+        const msg = r > 50
+          ? `&#10003; Worth it — gas $${tot.usd.toFixed(3)} vs $${tv.toFixed(2)} TRAC (${r.toFixed(0)}× return).`
+          : r > 5
+          ? `&#9888; Marginal — gas $${tot.usd.toFixed(3)} vs $${tv.toFixed(2)} TRAC. Consider waiting for lower gas.`
+          : `&#9888; High gas relative to value — gas $${tot.usd.toFixed(3)} vs $${tv.toFixed(2)} TRAC.`;
+        setH('worthIt', `<div class="st ${cls}"><span>${msg}</span></div>`);
+      }
+
+      show('gasSection');
+      show('withdrawSection');
+
+      if (wdLocked) {
+        hide('ws1'); show('ws2');
+        $('s1ind').className = 'step done';
+        $('s2ind').className = 'step active';
+        $('s1txlink').href   = `https://etherscan.io/address/${identity}`;
+        setH('s1txlink', 'View recent transactions on Etherscan &#8599;');
+        startCountdown(wdTs - now);
+      }
+    }
+
+  } catch (e) {
+    setH('balOut', `<div class="st s-err"><span>&#9888;</span>&nbsp;${e.message}</div>`);
+  }
+  $('checkBtn').disabled = false;
+}
+
+// ── Build ERC725 execute() calldata ───────────────────────────────────────
+function buildExecute(innerHex) {
+  const len = innerHex.length / 2;
+  return '0xb61d27f6'
+    + '0'.padStart(64, '0')               // operationType = CALL
+    + PROFILE.slice(2).padStart(64, '0')  // to = Profile contract
+    + '0'.padStart(64, '0')               // value = 0
+    + (128).toString(16).padStart(64, '0')// data offset
+    + len.toString(16).padStart(64, '0')  // data length
+    + innerHex.padEnd(Math.ceil(len / 32) * 64, '0');
+}
+
+// ── Send transaction ───────────────────────────────────────────────────────
+async function sendTx(to, data) {
+  if (!provider || !wallet) throw new Error('No wallet connected. Connect your management wallet first.');
+  const gasEst   = await rpc('eth_estimateGas', [{ from: wallet, to, data }]);
+  const gasLimit = '0x' + Math.ceil(parseInt(gasEst, 16) * 1.2).toString(16);
+  const gasPrice = await rpc('eth_gasPrice', []);
+  return provider.request({ method: 'eth_sendTransaction', params: [{ from: wallet, to, data, gas: gasLimit, gasPrice }] });
+}
+
+// ── Finish (pending already unlocked) ─────────────────────────────────────
+async function executeFinish() {
+  if (!wallet) {
+    setH('finishDirectStatus', '<div class="st s-warn"><span>&#9888;</span>&nbsp;Connect your management wallet first (Step 1 above).</div>');
+    return;
+  }
+  $('finishDirectBtn').disabled = true;
+  setH('finishDirectStatus', '<div class="st s-info"><div class="spin"></div>&nbsp;Waiting for wallet signature&hellip;</div>');
+  try {
+    const hash = await sendTx(currentIdentity, buildExecute('49df728c' + pad(currentIdentity)));
+    setH('finishDirectStatus', `<div class="st s-ok"><span>&#10003;</span>&nbsp;<span>Transaction sent! TRAC is on its way to your identity address.<br><a class="el" href="https://etherscan.io/tx/${hash}" target="_blank" style="color:var(--trac)">View tx ${hash.slice(0, 12)}… on Etherscan &#8599;</a></span></div>`);
+    $('finishDirectBtn').textContent = '&#10003; Done!';
+  } catch (e) {
+    setH('finishDirectStatus', `<div class="st s-err"><span>&#9888;</span>&nbsp;${e.message}</div>`);
+    $('finishDirectBtn').disabled = false;
+  }
+}
+
+// ── Step 1 ────────────────────────────────────────────────────────────────
+async function step1() {
+  if (!wallet) { setH('s1status', '<div class="st s-warn"><span>&#9888;</span>&nbsp;Connect your management wallet first.</div>'); return; }
+  const amtWei = weiFromStr($('wdAmtInput').value);
+  if (!amtWei) { setH('s1status', '<div class="st s-err"><span>&#9888;</span>&nbsp;Invalid amount.</div>'); return; }
+  $('s1btn').disabled = true;
+  setH('s1status', '<div class="st s-info"><div class="spin"></div>&nbsp;Waiting for wallet signature&hellip;</div>');
+  try {
+    const inner = '07ab5e84' + pad(currentIdentity) + amtWei.toString(16).padStart(64, '0');
+    const hash  = await sendTx(currentIdentity, buildExecute(inner));
+    $('s1txlink').href = `https://etherscan.io/tx/${hash}`;
+    setH('s1txlink', `Tx ${hash.slice(0, 12)}… on Etherscan &#8599;`);
+    hide('ws1'); show('ws2');
+    $('s1ind').className = 'step done';
+    $('s2ind').className = 'step active';
+    startCountdown(withdrawDelay);
+  } catch (e) {
+    setH('s1status', `<div class="st s-err"><span>&#9888;</span>&nbsp;${e.message}</div>`);
+    $('s1btn').disabled = false;
+  }
+}
+
+// ── Step 2 ────────────────────────────────────────────────────────────────
+async function step2() {
+  if (!wallet) { setH('s2status', '<div class="st s-warn"><span>&#9888;</span>&nbsp;Connect wallet first.</div>'); return; }
+  $('s2btn').disabled = true;
+  setH('s2status', '<div class="st s-info"><div class="spin"></div>&nbsp;Waiting for wallet signature&hellip;</div>');
+  try {
+    const hash = await sendTx(currentIdentity, buildExecute('49df728c' + pad(currentIdentity)));
+    $('s2txlink').href = `https://etherscan.io/tx/${hash}`;
+    setH('s2txlink', `Finalisation tx ${hash.slice(0, 12)}… &#8599;`);
+    hide('ws2'); show('wdone');
+    $('s2ind').className = 'step done';
+    $('s3ind').className = 'step active';
+  } catch (e) {
+    setH('s2status', `<div class="st s-err"><span>&#9888;</span>&nbsp;${e.message}</div>`);
+    $('s2btn').disabled = false;
+  }
+}
+
+// ── Countdown ─────────────────────────────────────────────────────────────
+function startCountdown(seconds) {
+  const btn = $('s2btn');
+  btn.disabled = true;
+  const end = Date.now() + seconds * 1000;
+  if (cdownInterval) clearInterval(cdownInterval);
+  cdownInterval = setInterval(() => {
+    const rem = Math.max(0, end - Date.now());
+    const m   = Math.floor(rem / 60000);
+    const s   = Math.floor((rem % 60000) / 1000);
+    setH('countdown', m + ':' + s.toString().padStart(2, '0'));
+    if (rem <= 0) {
+      clearInterval(cdownInterval);
+      btn.disabled = false;
+      btn.textContent = 'Sign & collect TRAC';
+      $('s2ind').className = 'step done';
+      $('s3ind').className = 'step active';
+    }
+  }, 500);
+}
+
+function setMax() {
+  if (stakeAvailable > 0n) $('wdAmtInput').value = (Number(stakeAvailable) / 1e18).toFixed(4);
+}
+
+// ── Auto-detect already-connected MetaMask ────────────────────────────────
+window.addEventListener('load', async () => {
+  await new Promise(r => setTimeout(r, 300));
+  const eth = window.ethereum || window.web3?.currentProvider;
+  if (eth) {
+    try {
+      const accounts = await eth.request({ method: 'eth_accounts' });
+      if (accounts.length) {
+        const chain = await eth.request({ method: 'eth_chainId' });
+        if (parseInt(chain, 16) === 1) {
+          provider = eth;
+          onConnected(accounts[0], 'MetaMask');
+        }
+      }
+    } catch (e) { /* not connected */ }
+  }
+});
+
+$('identInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkBalance(); });
+</script>
+</body>
+</html>

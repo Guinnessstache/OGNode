@@ -991,7 +991,7 @@ async function checkBalance() {
       return;
     }
 
-    const wdUnlocked = wdAmt > 0n && wdTs > 0 && wdTs <= now;
+    const wdUnlocked = wdAmt > 0n && wdTs > 0 && wdTs <= now && wdPend;
     const wdLocked   = wdAmt > 0n && wdTs > 0 && wdTs > now;
     const usdStake   = tracP ? '$' + (Number(stake) / 1e18 * tracP).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null;
     const usdAvail   = tracP && available > 0n ? '$' + (Number(available) / 1e18 * tracP).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null;
